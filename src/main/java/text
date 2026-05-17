@@ -1,0 +1,67 @@
+Phần 1 - Phân Tích Logic
+
+HTTP Status Codes giúp API giao tiếp rõ ràng với client về kết quả xử lý request. Thay vì client phải đoán dựa trên nội dung response, status code cho biết request thành công, thất bại do dữ liệu sai, không tìm thấy tài nguyên, lỗi server, hoặc cần xử lý theo cách khác.
+
+Ví dụ:
+
+200 OK
+Request xử lý thành công.
+
+201 Created
+Tài nguyên mới đã được tạo thành công.
+
+400 Bad Request
+Client gửi dữ liệu không hợp lệ.
+
+404 Not Found
+Không tìm thấy tài nguyên được yêu cầu.
+
+500 Internal Server Error
+Server gặp lỗi trong quá trình xử lý.
+
+Trong một robust API, HTTP Status Codes giúp client viết logic xử lý lỗi ổn định hơn. Ví dụ, khi nhận 404 Not Found, client có thể hiển thị thông báo “khách hàng không tồn tại”. Khi nhận 409 Conflict, client có thể báo “email đã được sử dụng”. Khi nhận 400 Bad Request, client biết cần kiểm tra lại dữ liệu đầu vào.
+
+Nếu controller trả về null thay vì ResponseEntity với HttpStatus.NOT_FOUND, client sẽ khó biết chính xác chuyện gì đã xảy ra. Tùy cách Spring xử lý, response có thể trở thành body rỗng với status không rõ ràng, hoặc gây lỗi phía server. Điều này làm client không phân biệt được các trường hợp như:
+
+Không tìm thấy dữ liệu.
+Server xử lý lỗi.
+Response bị lỗi định dạng.
+API trả về dữ liệu rỗng hợp lệ.
+Ví dụ không nên làm:
+
+@GetMapping("/{id}")
+public Customer getCustomerById(@PathVariable Long id) {
+    return customers.stream()
+            .filter(c -> c.getId().equals(id))
+            .findFirst()
+            .orElse(null);
+}
+Cách tốt hơn:
+
+@GetMapping("/{id}")
+public ResponseEntity<Customer> getCustomerById(@PathVariable Long id) {
+    return customers.stream()
+            .filter(c -> c.getId().equals(id))
+            .findFirst()
+            .map(customer -> new ResponseEntity<>(customer, HttpStatus.OK))
+            .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
+}
+Cách này giúp client nhận được phản hồi rõ ràng:
+
+404 Not Found
+thay vì một response mơ hồ.
+
+Jackson Dataformat XML cần thiết cho Content Negotiation với XML vì mặc định Spring Boot thường hỗ trợ JSON thông qua Jackson JSON. Khi client gửi header:
+
+Accept: application/xml
+client đang yêu cầu server trả dữ liệu ở định dạng XML. Để Spring có thể chuyển Java object như Customer thành XML, project cần thư viện xử lý XML, thường là:
+
+implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-xml'
+Nếu không có Jackson Dataformat XML, Spring không có message converter phù hợp để serialize object sang XML. Khi đó API có thể trả lỗi như 406 Not Acceptable, hoặc không thể đáp ứng đúng định dạng mà client yêu cầu.
+
+Tóm lại, HTTP Status Codes giúp API rõ nghĩa và dễ xử lý lỗi; ResponseEntity giúp server kiểm soát chính xác status trả về; còn Jackson Dataformat XML là thành phần cần thiết để Spring hỗ trợ trả response XML khi client yêu cầu qua Content Negotiation.
+
+
+
+
+
